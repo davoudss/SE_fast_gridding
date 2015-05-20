@@ -1,7 +1,7 @@
 #include "SE_fgg.h"
 #include "emmintrin.h"
+#include "x86intrin.h"
 #include "string.h"
-#include "SE_general.h"
 #include "malloc.h"
 
 // Dag Lindbo, dag@kth.se
@@ -144,6 +144,47 @@ void SE_FGG_allocate_workspace(SE_FGG_work* work, const SE_FGG_params* params,
     }
     work->free_fgg_expa=allocate_fgg_expa;
 }
+
+// -----------------------------------------------------------------------------
+void SE_FGG_allocate_workspace_SSE_force(SE_FGG_work* work, const SE_FGG_params* params,
+                                         int allocate_zs, int allocate_fgg_expa)
+{
+    const int P=params->P;
+    int numel = SE_prod3(params->npdims);
+    work->H = SE_FGG_MALLOC(numel*sizeof(double));
+    SE_fp_set_zero(work->H, numel);
+
+    if(allocate_zs)
+        work->zs = SE_FGG_MALLOC(P*P*P*sizeof(double));
+    else
+        work->zs = NULL;
+
+    work->free_zs=allocate_zs;
+
+    if(allocate_fgg_expa)
+    {
+        numel = (params->N)*(params->P);
+        work->zx = (double*) SE_FGG_MALLOC(numel*sizeof(double));
+        work->zy = (double*) SE_FGG_MALLOC(numel*sizeof(double));
+        work->zz = (double*) SE_FGG_MALLOC(numel*sizeof(double));
+        work->zfx = (double*) SE_FGG_MALLOC(numel*sizeof(double));
+        work->zfy = (double*) SE_FGG_MALLOC(numel*sizeof(double));
+        work->zfz = (double*) SE_FGG_MALLOC(numel*sizeof(double));
+        work->idx= (int*) SE_FGG_MALLOC(params->N*sizeof(int));
+    }
+    else
+    {
+        work->zx =NULL;
+        work->zy =NULL;
+        work->zz =NULL;
+        work->zfx=NULL;
+        work->zfy=NULL;
+        work->zfz=NULL;
+        work->idx=NULL;
+    }
+    work->free_fgg_expa=allocate_fgg_expa;
+}
+
 
 // -----------------------------------------------------------------------------
 double* SE_FGG_allocate_grid(const SE_FGG_params* params)

@@ -17,7 +17,6 @@
 #ifdef THREE_PERIODIC
 #define __FGG_EXPA fgg_expansion_3p
 #define __FGG_EXPA_FORCE fgg_expansion_3p_force
-
 #define PER_STR "3P"
 #endif
 
@@ -43,6 +42,7 @@
 #define __PRINTF printf
 #define __FREE free
 #define __IDX __IDX3_RMAJ
+#endif
 
 // Malloc with 16-byte alignment (from intrinsics library)
 #define SE_FGG_FREE(sz) _mm_free((sz))
