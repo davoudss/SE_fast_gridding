@@ -259,7 +259,7 @@ void SE_init_unit_system(SE_state* s, const SE_FGG_params* params)
 #endif
    
     FILE *fp;
-    fp = fopen("water81000.txt","r");
+    fp = fopen("atoms.txt","r");
     int err=0,i;
 
     for(i=0; i<N; i++)

@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
   int P = atoi(argv[2]);
  
   int M;
-  double m, L=3.1814, xi=8.00, eps;
+  double m, L=3.1814, xi=8.00, eps=1;
 
   SE_FGG_params params = {.N = N};
   SE_state st;
