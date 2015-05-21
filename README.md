@@ -1,23 +1,25 @@
-# SE_fast_gridding: Fast Gaussian Gridding:
+# SE_fast_gridding: Fast Gaussian Gridding
+The code is written in C and is accelerated using SSE and AVX. **_ _wrap_ _ ** and **_ _extend_ _** functions are written in **MATLAB** style but can be called in **C** style as well. **Please Do not change MATLAB style on master branch!**.
 
-The code is written in C and is accelerated using SSE and AVX. "*_wrap_* and "*_extend_*" functions are written in
-MATLAB style but can be called in C style as well. Please Do not change MATLAB style.
+## How to run the sample code:
+* N : (less than 200) number of charges.
+* P : number of points in the support of Gaussians.
 
-How to run the sample code:
-Let N (less than 81000) be the number of charges and P is the 
-number of points in the support of Gaussians
-! NEVER use N > 100 as the reference solution takes long time to run
+### WARNING! using N > 100, the reference solution takes long time to run!
 
+```sh
 $ . setenv
 $ ./a.out N P
+```
 
-** to compute FORCE/POTENTIAL, or run with SSE/AVX, edit setenv file:
-  * change -DPOTENTIAL to -DFORCE to compute force.
-  * change -DAVX to -DSSE
-  * change -DTHREE_PERIODIUIC to -DTWO_PERIODIC for SE2P (see note)
-NOTE: for SE2P, force calculation is not still available.
+## to compute FORCE/POTENTIAL, or run with SSE/AVX, edit setenv file:
+  * change **-DPOTENTIAL** to **-DFORCE** to compute force.
+  * change **-DAVX** to **-DSSE**.
+  * change **-DTHREE_PERIODIC** to **-DTWO_PERIODIC** for SE2P.
 
-Contributers:
-Dag Lindbo
-Ludvig af Klinteberg
-Davoud Saffar Shamshirgar
+### NOTE: for SE2P, force calculation is not yet available.
+
+### Contributers:
+* Dag Lindbo
+* Ludvig af Klinteberg
+* Davoud Saffar Shamshirgar
