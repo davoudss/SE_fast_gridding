@@ -1,1 +1,2 @@
-gcc -Wall -mavx -std=c99 -fopenmp -O3 -DVERBOSE -DTHREE_PERIODIC -DPOTENTIAL -DAVX -DFGG_SPLIT SE_fgg.c SE_general.c spectral_ewald.c SE_direct.c test_accuracy.c -lfftw3 -lm
+gcc -Wall -mavx2 -mfma -std=c99 -fopenmp -O3 -DVERBOSE -DTHREE_PERIODIC -DPOTENTIAL -DAVX -DFGG_SPLIT SE_fgg.c SE_general.c spectral_ewald.c SE_direct.c test_accuracy.c -lfftw3 -lm
+ 

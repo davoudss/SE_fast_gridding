@@ -1,5 +1,4 @@
 #include "SE_fgg.h"
-#include "emmintrin.h"
 #include "x86intrin.h"
 #include "string.h"
 #include "malloc.h"
@@ -251,12 +250,7 @@ void SE_init_unit_system(SE_state* s, const SE_FGG_params* params)
 
     s->x = SE_FGG_MALLOC(3*N*sizeof(double));
     s->q = SE_FGG_MALLOC(  N*sizeof(double));
-#ifdef CALC_ENERGY
     s->phi = SE_FGG_MALLOC(N*sizeof(double));
-#endif
-#ifdef POTENTIAL
-    s->phi = SE_FGG_MALLOC(N*sizeof(double));
-#endif
    
     FILE *fp;
     fp = fopen("atoms.txt","r");
@@ -282,12 +276,7 @@ void SE_init_system(SE_state* s, const SE_FGG_params* params)
 
     s->x = SE_FGG_MALLOC(3*N*sizeof(double));
     s->q = SE_FGG_MALLOC(  N*sizeof(double));
-#ifdef CALC_ENERGY
     s->phi = SE_FGG_MALLOC(N*sizeof(double));
-#endif
-#ifdef POTENTIAL
-    s->phi = SE_FGG_MALLOC(N*sizeof(double));
-#endif
 
 
     for(int i=0; i<N; i++)
@@ -1079,6 +1068,9 @@ void SE_FGG_int_split_SSE(double* restrict phi,
     const int incrj = params->npdims[2]-p;
     const int incri = params->npdims[2]*(params->npdims[1]-p);
 
+#ifdef _OPENMP
+#pragma omp for // work-share over OpenMP threads here
+#endif
     for(int m=0; m<N; m++)
     {
 	idx = work->idx[m];	
@@ -1167,6 +1159,9 @@ void SE_FGG_int_split_SSE_P8(double* restrict phi,
     const int incrj = params->npdims[2]-8;
     const int incri = params->npdims[2]*(params->npdims[1]-8);
 
+#ifdef _OPENMP
+#pragma omp for // work-share over OpenMP threads here
+#endif
     for(int m=0; m<N; m++)
     {
 	idx = work->idx[m];
@@ -1269,6 +1264,9 @@ void SE_FGG_int_split_SSE_P16(double* restrict phi,
     const int incrj = params->npdims[2]-16;
     const int incri = params->npdims[2]*(params->npdims[1]-16);
 
+#ifdef _OPENMP
+#pragma omp for // work-share over OpenMP threads here
+#endif
     for(int m=0; m<N; m++)
     {
 	idx = work->idx[m];
@@ -1429,6 +1427,9 @@ void SE_FGG_int_split_SSE_u8(double* restrict phi,
     const int incrj = params->npdims[2]-p;
     const int incri = params->npdims[2]*(params->npdims[1]-p);
 
+#ifdef _OPENMP
+#pragma omp for // work-share over OpenMP threads here
+#endif
     for(int m=0; m<N; m++)
     {
 	idx = work->idx[m];
@@ -1527,6 +1528,7 @@ void SE_FGG_int_split_SSE_u8(double* restrict phi,
 }
 
 // -----------------------------------------------------------------------------
+#ifdef __AVX__
 void SE_FGG_int_split_AVX_dispatch(double* restrict phi,
                                    const SE_FGG_work* work,
                                    const SE_FGG_params* params)
@@ -1554,7 +1556,7 @@ void SE_FGG_int_split_AVX_dispatch(double* restrict phi,
     if(p==16)
     {
         // specific for p=16
-        __DISPATCHER_MSG("[FGG INT AVX here] P=16\n");
+        __DISPATCHER_MSG("[FGG INT AVX] P=16\n");
         SE_FGG_int_split_AVX_P16(phi, work, params);
     }
     else if(p==8)
@@ -1574,12 +1576,6 @@ void SE_FGG_int_split_AVX_dispatch(double* restrict phi,
         // specific for p divisible by 4
         __DISPATCHER_MSG("[FGG INT AVX] P unroll 4\n");
         SE_FGG_int_split_AVX(phi, work, params);
-    }
-    else
-    {
-        // vanilla SSE code (any even p)
-        __DISPATCHER_MSG("[FGG INT SSE] Vanilla\n");
-        SE_FGG_int_split_SSE(phi, work, params);
     }
 }
 
@@ -1608,6 +1604,9 @@ void SE_FGG_int_split_AVX(double* restrict phi,
     const int incrj = params->npdims[2]-p;
     const int incri = params->npdims[2]*(params->npdims[1]-p);
 
+#ifdef _OPENMP
+#pragma omp for // work-share over OpenMP threads here
+#endif
     for(int m=0; m<N; m++)
     {
         idx = work->idx[m];
@@ -1627,8 +1626,11 @@ void SE_FGG_int_split_AVX(double* restrict phi,
                         rH0  = _mm256_load_pd( H+idx );
                         rZZ0 = _mm256_load_pd( zz + idx_zz);
                         rZS0 = _mm256_load_pd( zs + idx_zs);
+#ifdef AVX_FMA
+                        rP = _mm256_fmadd_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0),rP);
+#else
                         rP = _mm256_add_pd(rP,_mm256_mul_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0)));
-
+#endif
                         idx+=4;
                         idx_zs+=4;
                         idx_zz+=4;
@@ -1651,8 +1653,11 @@ void SE_FGG_int_split_AVX(double* restrict phi,
                         rH0  = _mm256_loadu_pd( H+idx );
                         rZZ0 = _mm256_load_pd( zz + idx_zz);
                         rZS0 = _mm256_load_pd( zs + idx_zs);
+#ifdef AVX_FMA
+                        rP = _mm256_fmadd_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0),rP);
+#else
                         rP = _mm256_add_pd(rP,_mm256_mul_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0)));
-
+#endif
                         idx+=4;
                         idx_zs+=4;
                         idx_zz+=4;
@@ -1696,6 +1701,9 @@ void SE_FGG_int_split_AVX_P8(double* restrict phi,
     const int incrj = params->npdims[2]-8;
     const int incri = params->npdims[2]*(params->npdims[1]-8);
     
+#ifdef _OPENMP
+#pragma omp for // work-share over OpenMP threads here
+#endif
     for(int m=0; m<N; m++)
     {
         idx = work->idx[m];
@@ -1719,10 +1727,13 @@ void SE_FGG_int_split_AVX_P8(double* restrict phi,
 
                     rZS0 = _mm256_load_pd( zs + idx_zs    );
                     rZS1 = _mm256_load_pd( zs + idx_zs + 4);
-
+#ifdef AVX_FMA
+                    rP = _mm256_fmadd_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0),rP);
+                    rP = _mm256_fmadd_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1),rP);
+#else
                     rP = _mm256_add_pd(rP,_mm256_mul_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0)));
                     rP = _mm256_add_pd(rP,_mm256_mul_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1)));
-
+#endif
                     idx_zs +=8;
                     idx += incrj + 8;
                 }
@@ -1742,10 +1753,13 @@ void SE_FGG_int_split_AVX_P8(double* restrict phi,
 
                     rZS0 = _mm256_load_pd( zs + idx_zs    );
                     rZS1 = _mm256_load_pd( zs + idx_zs + 4);
-
+#ifdef AVX_FMA
+                    rP = _mm256_fmadd_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0),rP);
+                    rP = _mm256_fmadd_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1),rP);
+#else
                     rP = _mm256_add_pd(rP,_mm256_mul_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0)));
                     rP = _mm256_add_pd(rP,_mm256_mul_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1)));
-
+#endif
                     idx_zs +=8;
                     idx += incrj + 8;
                 }
@@ -1787,6 +1801,9 @@ void SE_FGG_int_split_AVX_P16(double* restrict phi,
     const int incrj = params->npdims[2]-16;
     const int incri = params->npdims[2]*(params->npdims[1]-16);
 
+#ifdef _OPENMP
+#pragma omp for // work-share over OpenMP threads here
+#endif
     for(int m=0; m<N; m++)
     {
 	idx = work->idx[m];
@@ -1816,12 +1833,17 @@ void SE_FGG_int_split_AVX_P16(double* restrict phi,
 		    rZS1 = _mm256_load_pd( zs + idx_zs + 4 );
 		    rZS2 = _mm256_load_pd( zs + idx_zs + 8 );
 		    rZS3 = _mm256_load_pd( zs + idx_zs + 12);
-		    
+#ifdef AVX_FMA
+		    rP = _mm256_fmadd_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0),rP);
+		    rP = _mm256_fmadd_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1),rP);
+		    rP = _mm256_fmadd_pd(rH2,_mm256_mul_pd(_mm256_mul_pd(rZZ2,rC),rZS2),rP);
+		    rP = _mm256_fmadd_pd(rH3,_mm256_mul_pd(_mm256_mul_pd(rZZ3,rC),rZS3),rP);
+#else		    
 		    rP = _mm256_add_pd(rP,_mm256_mul_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0)));
 		    rP = _mm256_add_pd(rP,_mm256_mul_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1)));
 		    rP = _mm256_add_pd(rP,_mm256_mul_pd(rH2,_mm256_mul_pd(_mm256_mul_pd(rZZ2,rC),rZS2)));
 		    rP = _mm256_add_pd(rP,_mm256_mul_pd(rH3,_mm256_mul_pd(_mm256_mul_pd(rZZ3,rC),rZS3)));
-
+#endif
 		    idx_zs +=16;
 		    idx += incrj + 16;
 		}
@@ -1845,12 +1867,17 @@ void SE_FGG_int_split_AVX_P16(double* restrict phi,
 		    rZS1 = _mm256_load_pd( zs + idx_zs + 4 );
 		    rZS2 = _mm256_load_pd( zs + idx_zs + 8 );
 		    rZS3 = _mm256_load_pd( zs + idx_zs + 12);
-		    
+#ifdef AVX_FMA
+		    rP = _mm256_fmadd_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0),rP);
+		    rP = _mm256_fmadd_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1),rP);
+		    rP = _mm256_fmadd_pd(rH2,_mm256_mul_pd(_mm256_mul_pd(rZZ2,rC),rZS2),rP);
+		    rP = _mm256_fmadd_pd(rH3,_mm256_mul_pd(_mm256_mul_pd(rZZ3,rC),rZS3),rP);
+#else		    
 		    rP = _mm256_add_pd(rP,_mm256_mul_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0)));
 		    rP = _mm256_add_pd(rP,_mm256_mul_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1)));
 		    rP = _mm256_add_pd(rP,_mm256_mul_pd(rH2,_mm256_mul_pd(_mm256_mul_pd(rZZ2,rC),rZS2)));
 		    rP = _mm256_add_pd(rP,_mm256_mul_pd(rH3,_mm256_mul_pd(_mm256_mul_pd(rZZ3,rC),rZS3)));
-
+#endif
 		    idx_zs +=16;
 		    idx += incrj + 16;
 		}
@@ -1887,6 +1914,9 @@ void SE_FGG_int_split_AVX_u8(double* restrict phi,
     const int incrj = params->npdims[2]-p;
     const int incri = params->npdims[2]*(params->npdims[1]-p);
 
+#ifdef _OPENMP
+#pragma omp for // work-share over OpenMP threads here
+#endif
     for(int m=0; m<N; m++)
     {
 	idx = work->idx[m];
@@ -1912,10 +1942,13 @@ void SE_FGG_int_split_AVX_u8(double* restrict phi,
 
 			rZS0 = _mm256_load_pd( zs + idx_zs    );
 			rZS1 = _mm256_load_pd( zs + idx_zs + 4);
-
+#ifdef AVX_FMA
+			rP = _mm256_fmadd_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0),rP);
+			rP = _mm256_fmadd_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1),rP);
+#else
 			rP = _mm256_add_pd(rP,_mm256_mul_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0)));
 			rP = _mm256_add_pd(rP,_mm256_mul_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1)));
-			
+#endif			
 			idx+=8; 
 			idx_zs+=8; 
 			idx_zz+=8;
@@ -1944,10 +1977,13 @@ void SE_FGG_int_split_AVX_u8(double* restrict phi,
 
 			rZS0 = _mm256_load_pd( zs + idx_zs    );
 			rZS1 = _mm256_load_pd( zs + idx_zs + 4);
-
+#ifdef AVX_FMA
+			rP = _mm256_fmadd_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0),rP);
+			rP = _mm256_fmadd_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1),rP);
+#else
 			rP = _mm256_add_pd(rP,_mm256_mul_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0)));
 			rP = _mm256_add_pd(rP,_mm256_mul_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1)));
-			
+#endif			
 			idx+=8; 
 			idx_zs+=8; 
 			idx_zz+=8;
@@ -1963,7 +1999,7 @@ void SE_FGG_int_split_AVX_u8(double* restrict phi,
 	phi[m] = (h*h*h)*(s[0]+s[1]+s[2]+s[3]);
     }
 }
-
+#endif // AVX
 
 // -----------------------------------------------------------------------------
 void SE_FGG_int_split_SSE_dispatch_force(double* restrict force,  
@@ -2917,6 +2953,7 @@ rFZ = _mm_add_pd(rFZ,_mm_mul_pd(rH3,_mm_mul_pd(_mm_mul_pd(_mm_mul_pd(rZFZ3,rZZ3)
 
 
 // -----------------------------------------------------------------------------
+#ifdef __AVX__
 void SE_FGG_int_split_AVX_dispatch_force(double* restrict force,  
 					 SE_state *st,
 					 const SE_FGG_work* work, 
@@ -3639,6 +3676,7 @@ rFZ = _mm256_add_pd(rFZ,_mm256_mul_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(_mm256_mul
 #endif
     }
 }
+#endif // AVX
 
 // -----------------------------------------------------------------------------
 void SE_FGG_grid(SE_FGG_work* work, const SE_state* st, 
@@ -4184,6 +4222,7 @@ void SE_FGG_grid_split_SSE(SE_FGG_work* work, const SE_state* st,
 }
 
 // -----------------------------------------------------------------------------
+#ifdef __AVX__
 void SE_FGG_grid_split_AVX_dispatch(SE_FGG_work* work, const SE_state* st, 
 				    const SE_FGG_params* params)
 {
@@ -4233,7 +4272,7 @@ void SE_FGG_grid_split_AVX_dispatch(SE_FGG_work* work, const SE_state* st,
     {
 	// specific for p=16
 	__DISPATCHER_MSG("[FGG GRID AVX] P=16\n");
-	SE_FGG_grid_split_SSE_P16(work, st, params); 
+	SE_FGG_grid_split_AVX_P16(work, st, params); 
     }
     else if(p==8)
     {
@@ -4252,12 +4291,6 @@ void SE_FGG_grid_split_AVX_dispatch(SE_FGG_work* work, const SE_state* st,
       // specific for p divisible by 4
       __DISPATCHER_MSG("[FGG GRID AVX] P unroll 4\n");
       SE_FGG_grid_split_AVX(work, st, params);
-    }
-    else
-    {
-	// vanilla AVX code (any even p)
-	__DISPATCHER_MSG("[FGG GRID AVX] Vanilla\n");
-	SE_FGG_grid_split_SSE(work, st, params);
     }
 }
 
@@ -4302,13 +4335,14 @@ void SE_FGG_grid_split_AVX(SE_FGG_work* work, const SE_state* st,
 			rH0  = _mm256_load_pd( H+idx0     );
 			rZZ0 = _mm256_load_pd( zz + idx_zz     );
 			rZS0 = _mm256_load_pd( zs + idx_zs    );
-
 			rZZ0 = _mm256_mul_pd(rZZ0,rC);
+#ifdef AVX_FMA
+			rH0 = _mm256_fmadd_pd(rZZ0, rZS0, rH0);
+#else
 			rZZ0 = _mm256_mul_pd(rZZ0,rZS0);
 			rH0  = _mm256_add_pd(rH0,rZZ0);
-
-			_mm256_store_pd( H+idx0    , rH0 );
-
+#endif
+			_mm256_store_pd(H + idx0, rH0);
 			idx0  +=4;
 			idx_zs+=4; 
 			idx_zz+=4;
@@ -4332,8 +4366,12 @@ void SE_FGG_grid_split_AVX(SE_FGG_work* work, const SE_state* st,
 	    		rZZ0 = _mm256_load_pd( zz + idx_zz );
 	    		rZS0 = _mm256_load_pd( zs + idx_zs );
 	    		rZZ0 = _mm256_mul_pd(rZZ0,rC);
-	    		rZZ0 = _mm256_mul_pd(rZZ0,rZS0);
-	    		rH0  = _mm256_add_pd(rH0,rZZ0);
+#ifdef AVX_FMA
+			rH0 = _mm256_fmadd_pd(rZZ0, rZS0, rH0);
+#else
+			rZZ0 = _mm256_mul_pd(rZZ0,rZS0);
+			rH0  = _mm256_add_pd(rH0,rZZ0);
+#endif
 	    		_mm256_storeu_pd( H+idx0, rH0 );
 
 	    		idx0  +=4;
@@ -4399,12 +4437,17 @@ void SE_FGG_grid_split_AVX_P16(SE_FGG_work* work, const SE_state* st,
                     rZS1 = _mm256_load_pd( zs + idx_zs + 4);
                     rZS2 = _mm256_load_pd( zs + idx_zs + 8);
                     rZS3 = _mm256_load_pd( zs + idx_zs + 12);
-
+#ifdef AVX_FMA
+		    rH0 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ0,rC), rZS0, rH0);
+		    rH1 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ1,rC), rZS1, rH1);
+		    rH2 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ2,rC), rZS2, rH2);
+		    rH3 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ3,rC), rZS3, rH3);
+#else
 		    rH0 = _mm256_add_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0));
 		    rH1 = _mm256_add_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1));
 		    rH2 = _mm256_add_pd(rH2,_mm256_mul_pd(_mm256_mul_pd(rZZ2,rC),rZS2));
 		    rH3 = _mm256_add_pd(rH3,_mm256_mul_pd(_mm256_mul_pd(rZZ3,rC),rZS3));
-
+#endif
 		    _mm256_store_pd(H + idx,      rH0);
 		    _mm256_store_pd(H + idx + 4,  rH1);
 		    _mm256_store_pd(H + idx + 8 , rH2);
@@ -4433,12 +4476,17 @@ void SE_FGG_grid_split_AVX_P16(SE_FGG_work* work, const SE_state* st,
                     rZS1 = _mm256_load_pd( zs + idx_zs +  4);
                     rZS2 = _mm256_load_pd( zs + idx_zs +  8);                   
                     rZS3 = _mm256_load_pd( zs + idx_zs + 12);
-
+#ifdef AVX_FMA
+		    rH0 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ0,rC), rZS0, rH0);
+		    rH1 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ1,rC), rZS1, rH1);
+		    rH2 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ2,rC), rZS2, rH2);
+		    rH3 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ3,rC), rZS3, rH3);
+#else
 		    rH0 = _mm256_add_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0));
 		    rH1 = _mm256_add_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1));
 		    rH2 = _mm256_add_pd(rH2,_mm256_mul_pd(_mm256_mul_pd(rZZ2,rC),rZS2));
 		    rH3 = _mm256_add_pd(rH3,_mm256_mul_pd(_mm256_mul_pd(rZZ3,rC),rZS3));
-
+#endif
 		    _mm256_storeu_pd(H + idx,      rH0);
 		    _mm256_storeu_pd(H + idx + 4,  rH1);
 		    _mm256_storeu_pd(H + idx + 8,  rH2);
@@ -4496,10 +4544,13 @@ void SE_FGG_grid_split_AVX_P8(SE_FGG_work* work, const SE_state* st,
 
                     rZS0 = _mm256_load_pd( zs + idx_zs);
                     rZS1 = _mm256_load_pd( zs + idx_zs + 4);
-
+#ifdef AVX_FMA
+		    rH0 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ0,rC), rZS0, rH0);
+		    rH1 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ1,rC), rZS1, rH1);
+#else
 		    rH0 = _mm256_add_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0));
 		    rH1 = _mm256_add_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1));
-
+#endif
 		    _mm256_store_pd(H + idx,      rH0);
 		    _mm256_store_pd(H + idx + 4,  rH1);
 
@@ -4522,10 +4573,13 @@ void SE_FGG_grid_split_AVX_P8(SE_FGG_work* work, const SE_state* st,
 
                     rZS0 = _mm256_load_pd( zs + idx_zs     );
                     rZS1 = _mm256_load_pd( zs + idx_zs +   4);
-
+#ifdef AVX_FMA
+		    rH0 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ0,rC), rZS0, rH0);
+		    rH1 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ1,rC), rZS1, rH1);
+#else
 		    rH0 = _mm256_add_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0));
 		    rH1 = _mm256_add_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1));
-
+#endif
 		    _mm256_storeu_pd(H + idx,      rH0);
 		    _mm256_storeu_pd(H + idx + 4,  rH1);
 
@@ -4585,10 +4639,13 @@ void SE_FGG_grid_split_AVX_u8(SE_FGG_work* work, const SE_state* st,
 
 			rZS0 = _mm256_load_pd( zs + idx_zs    );
 			rZS1 = _mm256_load_pd( zs + idx_zs + 4);
-
+#ifdef AVX_FMA
+			rH0 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ0,rC), rZS0, rH0);
+			rH1 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ1,rC), rZS1, rH1);
+#else
 			rH0 = _mm256_add_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0));
 			rH1 = _mm256_add_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1));
-			
+#endif
 			_mm256_store_pd( H+idx0    , rH0 );
 			_mm256_store_pd( H+idx0 + 4, rH1 );
 
@@ -4620,10 +4677,13 @@ void SE_FGG_grid_split_AVX_u8(SE_FGG_work* work, const SE_state* st,
 
 	    		rZS0 = _mm256_load_pd( zs + idx_zs    );
 	    		rZS1 = _mm256_load_pd( zs + idx_zs + 4);
-
+#ifdef AVX_FMA
+			rH0 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ0,rC), rZS0, rH0);
+			rH1 = _mm256_fmadd_pd(_mm256_mul_pd(rZZ1,rC), rZS1, rH1);
+#else
 			rH0 = _mm256_add_pd(rH0,_mm256_mul_pd(_mm256_mul_pd(rZZ0,rC),rZS0));
 			rH1 = _mm256_add_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(rZZ1,rC),rZS1));
-
+#endif
 	    		_mm256_storeu_pd( H+idx0    , rH0 );
 	    		_mm256_storeu_pd( H+idx0 + 4, rH1 );
 
@@ -4638,7 +4698,7 @@ void SE_FGG_grid_split_AVX_u8(SE_FGG_work* work, const SE_state* st,
 	}
     }
 }
-
+#endif // AVX
 
 // -----------------------------------------------------------------------------
 void 
@@ -5137,6 +5197,7 @@ void SE_FGG_grid_split_SSE_force(SE_FGG_work* work,
 
 
 // -----------------------------------------------------------------------------
+#ifdef __AVX__
 void 
 SE_FGG_grid_split_AVX_dispatch_force(SE_FGG_work* work, 
 				     const SE_state *st,
@@ -5601,7 +5662,7 @@ void SE_FGG_grid_split_AVX_force(SE_FGG_work* work,
 	}
     }
 }
-
+#endif //AVX
 
 
 
