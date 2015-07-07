@@ -10,20 +10,41 @@
 
 typedef struct 
 {
-    double box[3];
-    double xi;
-    int layers; 
-	double rc;
+  double box[3];
+  double xi;
+  int layers; 
+  double rc;
 } ewald_opts;
 
+#ifdef ONE_PERIODIC
+void SE1P_direct_real(double*, const double*, const double*, int, const ewald_opts);
 
-void SE3P_direct(double*, const double *, const double*, int, 
-		 const ewald_opts);
+void SE1P_direct_real_rc(double*, const double*, const double*, int, const ewald_opts);
 
-void SE3P_direct_force(double*, const double *, const double*, int, const ewald_opts);
+void SE1P_direct_fd(double*, const double *, const double*, int, const ewald_opts);
 
-void SE3P_direct_real(double*, const double* , const double* , int , const ewald_opts);
+void SE1P_direct_k0(double*, const double *, const double*, int, const ewald_opts);
+
+void SE1P_direct_self(double*, const double*, int, const ewald_opts);
+
+#elif defined ( TWO_PERIODIC )
+void SE2P_direct_real(double*, const double*, const double*, int, const ewald_opts);
+
+void SE2P_direct_real_rc(double*, const double*, const double*, int, const ewald_opts);
+
+void SE2P_direct_fd(double*, const double *, const double*, int, const ewald_opts);
+
+void SE2P_direct_k0(double*, const double *, const double*, int, const ewald_opts);
+
+void SE2P_direct_self(double*, const double*, int, const ewald_opts);
+
+#else 
+void SE3P_direct_real_rc(double*, const double* , const double* , int, const ewald_opts);
+
+void SE3P_direct_fd(double*, const double *, const double*, int, const ewald_opts);
+
+void SE3P_direct_force_fd(double*, const double *, const double*, int, const ewald_opts);
 
 void SE3P_direct_self(double* , const double* , int , const ewald_opts);
-
-#endif
+#endif //PERIODICITY
+#endif //SE_DIRECT_H

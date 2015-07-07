@@ -16,9 +16,9 @@ $ ./a.out N P
 ## to compute FORCE/POTENTIAL, or run with SSE/AVX, edit setenv file:
   * change **-DPOTENTIAL** to **-DFORCE** to compute force.
   * change **-DAVX** to **-DSSE**.
-  * change **-DTHREE_PERIODIC** to **-DTWO_PERIODIC** for SE2P.
+  * change **-DTHREE_PERIODIC** to **-DTWO_PERIODIC** for SE2P and to **-DONE_PERIODIC** for SE1P.
 
-### NOTE: for SE2P, force calculation is not yet available.
+### NOTE: for SE2P and SE1P, force calculation is not yet available.
 
 ### Contributers:
 * Dag Lindbo

@@ -1,15 +1,13 @@
 #include "SE_fgg.h"
-#include "x86intrin.h"
+#include "emmintrin.h"
 #include "string.h"
 #include "malloc.h"
 
 // Dag Lindbo, dag@kth.se
-// Core of SE is written by Dag Lindbo. The routines are modified
+// Core of SE3P and SE2P is written by Dag Lindbo. The routines are modified
 // to calculate forces.
-// Davoud Saffar Shamshirgar
-
-// =============================================================================
-//#define PI 3.141592653589793
+// SE1P is also added to the routines.
+// Davoud Saffar Shamshirgar davoudss@kth.se
 
 // =============================================================================
 // Internal routines ===========================================================
@@ -78,6 +76,7 @@ void SE_FGG_pack_params(SE_FGG_params* params, int N, int M0, int M1, int M2,
     params->d = pow(c/PI,1.5);
     params->h = h;
     params->a = -1;
+    params->b = -1;
 
     params->dims[0] = M0;
     params->dims[1] = M1;
@@ -99,6 +98,29 @@ void SE2P_FGG_pack_params(SE_FGG_params* params, int N, int M0, int M1, int M2,
     params->d = pow(c/PI,1.5);
     params->h = h;
     params->a = a;
+    params->b = -1;
+
+    params->dims[0] = M0;
+    params->dims[1] = M1;
+    params->dims[2] = M2;
+
+    params->npdims[0] = M0+P;
+    params->npdims[1] = M1+P;
+    params->npdims[2] = M2+P;
+}
+
+// -----------------------------------------------------------------------------
+void SE1P_FGG_pack_params(SE_FGG_params* params, int N, int M0, int M1, int M2, 
+			  int P, double c, double h, double a, double b)
+{
+    params->N = N;
+    params->P = P;
+    params->P_half=half(P);
+    params->c = c;
+    params->d = pow(c/PI,1.5);
+    params->h = h;
+    params->a = a;
+    params->b = b;
 
     params->dims[0] = M0;
     params->dims[1] = M1;
@@ -330,7 +352,7 @@ void SE_FGG_wrap_fcn(double* H_per,
 }
 
 // -----------------------------------------------------------------------------
-// Wrap H to produce 2-periodicity
+// Wrap H to produce 2-periodicity, periodic in x and y, free in z dir.
 // OUTPUT IN FORTRAN/MATLAB-STYLE COLUMN MAJOR LAYOUT!
 void SE2P_FGG_wrap_fcn(double* restrict H_per, 
 		       const SE_FGG_work* work, 
@@ -358,6 +380,36 @@ void SE2P_FGG_wrap_fcn(double* restrict H_per,
 	}
     }
 }
+
+// -----------------------------------------------------------------------------
+// Wrap H to produce 1-periodicity, periodic in z, free in x and y dir.
+// OUTPUT IN FORTRAN/MATLAB-STYLE COLUMN MAJOR LAYOUT!
+void SE1P_FGG_wrap_fcn(double* restrict H_per, 
+		       const SE_FGG_work* work, 
+		       const SE_FGG_params* params)
+{
+    int idx;
+    int widx;
+    const int p_half = half(params->P);
+
+    // can not openMP here, race to += on H_per beacuse indices wrap around
+    for(int i=0; i<params->npdims[0]; i++)
+    {
+	for(int j=0; j<params->npdims[1]; j++)
+	{
+	    for(int k=0; k<params->npdims[2]; k++)
+	    {
+		widx= vmod(k-p_half,params->dims[2]);
+		idx = __IDX3_CMAJ(i, j, widx, 
+				  params->dims[0], params->dims[1]);
+		H_per[idx] += work->H[ __IDX3_RMAJ(i,j,k,
+						   params->npdims[1],
+						   params->npdims[2]) ];
+	    }
+	}
+    }
+}
+
 
 // -----------------------------------------------------------------------------
 // Extend periodic function larger box
@@ -391,7 +443,7 @@ void SE_FGG_extend_fcn(SE_FGG_work* work, const double* H_per,
 }
 
 // -----------------------------------------------------------------------------
-// Extend 2-periodic function larger box
+// Extend 2-periodic function larger box, periodic in x and y, free in z dir.
 // INPUT IN FORTRAN/MATLAB-STYLE COLUMN MAJOR LAYOUT!
 void SE2P_FGG_extend_fcn(SE_FGG_work* work, const double* H_per, 
 			 const SE_FGG_params* params)
@@ -420,6 +472,34 @@ void SE2P_FGG_extend_fcn(SE_FGG_work* work, const double* H_per,
     }
 }
 
+// -----------------------------------------------------------------------------
+// Extend 1-periodic function larger box, periodic in z, free in x and y dir.
+// INPUT IN FORTRAN/MATLAB-STYLE COLUMN MAJOR LAYOUT!
+void SE1P_FGG_extend_fcn(SE_FGG_work* work, const double* H_per, 
+			 const SE_FGG_params* params)
+{
+    int idx;
+    int widx;
+    const int p_half = half(params->P);
+
+#ifdef _OPENMP
+#pragma omp for // work-share over OpenMP threads here
+#endif
+    for(int i=0; i<params->npdims[0]; i++)
+    {
+	for(int j=0; j<params->npdims[1]; j++)
+	{
+	    for(int k=0; k<params->npdims[2]; k++)
+	    {
+		widx = vmod(k-p_half,params->dims[2]);
+		idx = __IDX3_CMAJ(i, j, widx, 
+				  params->dims[0], params->dims[1]);
+		work->H[__IDX3_RMAJ(i,j,k,params->npdims[1],params->npdims[2])]
+		    = H_per[idx];
+	    }
+	}
+    }
+}
 
 // =============================================================================
 // Core SE FGG routines ========================================================
@@ -737,6 +817,104 @@ int fgg_expansion_2p(const double x[3], const double q,
 		       idx_from[2], 
 		       params->npdims[1], params->npdims[2]);
 }
+
+// -----------------------------------------------------------------------------
+static 
+int fgg_expansion_1p(const double x[3], const double q,
+		     const SE_FGG_params* params,
+		     double z2_0[P_MAX], 
+		     double z2_1[P_MAX], 
+		     double z2_2[P_MAX])
+{
+    const int p = params->P;
+    const int p_half = params->P_half;
+    const double h = params->h;
+    const double c=params->c;
+    const double a=params->a;
+    const double b=params->b;
+
+    double t0[3];
+    int idx;
+    int idx_from[3];
+
+    // compute index range and centering
+    if(is_odd(p))
+    {
+	idx = (int) round((x[0]-(a+h/2))/h);
+	idx_from[0] = idx - p_half;
+	t0[0] = x[0] - (idx*h + (a+h/2));
+
+	idx = (int) round((x[1]-(b+h/2))/h);
+	idx_from[1] = idx - p_half;
+	t0[1] = x[1] - (idx*h + (b+h/2));
+
+	idx = (int) round(x[2]/h);
+	idx_from[2] = idx - p_half;
+	t0[2] = x[2]-h*idx;
+    }
+    else
+    {
+	idx = (int) floor((x[0]-(a+h/2))/h);
+	idx_from[0] = idx - (p_half-1);
+	t0[0] = x[0] - (idx*h + (a+h/2));
+
+	idx = (int) floor((x[1]-(b+h/2))/h);
+	idx_from[1] = idx - (p_half-1);
+	t0[1] = x[1] - (idx*h + (b+h/2));
+
+	idx = (int) floor(x[2]/h);
+	idx_from[2] = idx - (p_half-1);
+	t0[2] = x[2]-h*idx;
+    }
+
+    // compute third factor 
+    double z3 = exp(-c*(t0[0]*t0[0] + t0[1]*t0[1] + t0[2]*t0[2]) )*q;
+
+    // compute second factor by induction
+    double z_base0 = exp(2*c*h*t0[0]);
+    double z_base1 = exp(2*c*h*t0[1]);
+    double z_base2 = exp(2*c*h*t0[2]);
+
+    double z0, z1, z2;
+    if(is_odd(p))
+    {
+	z0 = pow(z_base0,-p_half);
+	z1 = pow(z_base1,-p_half);
+	z2 = pow(z_base2,-p_half);
+    }	
+    else
+    {
+    	z0 = pow(z_base0,-p_half+1);
+    	z1 = pow(z_base1,-p_half+1);
+    	z2 = pow(z_base2,-p_half+1);
+    }
+
+    z2_0[0] = z0;
+    z2_1[0] = z1;
+    z2_2[0] = z2;
+    for(int i=1; i<p; i++)
+    {
+	z0 *=z_base0;
+	z1 *=z_base1;
+	z2 *=z_base2;
+
+	z2_0[i] = z0;
+	z2_1[i] = z1;
+	z2_2[i] = z2;
+    }
+
+    // save some flops by multiplying one vector with z3 factor
+    for(int i=0; i<p; i++)
+    {
+	z2_0[i] *= z3;
+    }
+
+    return __IDX3_RMAJ(idx_from[0], 
+		       idx_from[1], 
+		       idx_from[2]+p_half, 
+		       params->npdims[1], params->npdims[2]);
+}
+
 
 // -----------------------------------------------------------------------------
 void SE_FGG_expand_all(SE_FGG_work* work, 
@@ -1547,8 +1725,8 @@ void SE_FGG_int_split_AVX_dispatch(double* restrict phi,
     // if either P or increments are not divisible by 4, fall back on vanilla
     if( isnot_div_by_4(p) || isnot_div_by_4(incri) || isnot_div_by_4(incrj) )
     {
-        __DISPATCHER_MSG("[FGG INT AVX] AVX Abort (PARAMS)\n");
-        SE_FGG_int_split(phi, work, params);
+        __DISPATCHER_MSG("[FGG INT AVX] AVX Abort (PARAMS) - call SSE\n");
+        SE_FGG_int_split_SSE_dispatch(phi, work, params);
         return;
     }
 
@@ -1576,6 +1754,12 @@ void SE_FGG_int_split_AVX_dispatch(double* restrict phi,
         // specific for p divisible by 4
         __DISPATCHER_MSG("[FGG INT AVX] P unroll 4\n");
         SE_FGG_int_split_AVX(phi, work, params);
+    }
+    else
+    {
+        // vanilla SSE code (any even p)
+        __DISPATCHER_MSG("[FGG INT SSE] Vanilla\n");
+        SE_FGG_int_split_SSE(phi, work, params);
     }
 }
 
@@ -1999,7 +2183,7 @@ void SE_FGG_int_split_AVX_u8(double* restrict phi,
 	phi[m] = (h*h*h)*(s[0]+s[1]+s[2]+s[3]);
     }
 }
-#endif // AVX
+#endif //__AVX__
 
 // -----------------------------------------------------------------------------
 void SE_FGG_int_split_SSE_dispatch_force(double* restrict force,  
@@ -3676,7 +3860,7 @@ rFZ = _mm256_add_pd(rFZ,_mm256_mul_pd(rH1,_mm256_mul_pd(_mm256_mul_pd(_mm256_mul
 #endif
     }
 }
-#endif // AVX
+#endif // __AVX__
 
 // -----------------------------------------------------------------------------
 void SE_FGG_grid(SE_FGG_work* work, const SE_state* st, 
@@ -4246,8 +4430,8 @@ void SE_FGG_grid_split_AVX_dispatch(SE_FGG_work* work, const SE_state* st,
     // if either P or increments are not divisible by 4, fall back on vanilla
     if( isnot_div_by_4(p) || isnot_div_by_4(incri) || isnot_div_by_4(incrj) )
     {
-	__DISPATCHER_MSG("[FGG GRID AVX] AVX Abort (PARAMS)\n");
-	SE_FGG_grid_split(work, st, params);
+	__DISPATCHER_MSG("[FGG GRID AVX] AVX Abort (PARAMS) - call SSE\n");
+        SE_FGG_grid_split_SSE_dispatch(work, st, params);
 	return;
     }
 
@@ -4291,6 +4475,12 @@ void SE_FGG_grid_split_AVX_dispatch(SE_FGG_work* work, const SE_state* st,
       // specific for p divisible by 4
       __DISPATCHER_MSG("[FGG GRID AVX] P unroll 4\n");
       SE_FGG_grid_split_AVX(work, st, params);
+    }
+    else
+    {
+	// vanilla AVX code (any even p)
+	__DISPATCHER_MSG("[FGG GRID AVX] Vanilla\n");
+	SE_FGG_grid_split_SSE(work, st, params);
     }
 }
 
@@ -4698,7 +4888,7 @@ void SE_FGG_grid_split_AVX_u8(SE_FGG_work* work, const SE_state* st,
 	}
     }
 }
-#endif // AVX
+#endif //__AVX__
 
 // -----------------------------------------------------------------------------
 void 
@@ -5662,10 +5852,7 @@ void SE_FGG_grid_split_AVX_force(SE_FGG_work* work,
 	}
     }
 }
-#endif //AVX
-
-
-
+#endif // __AVX__
 
 
 

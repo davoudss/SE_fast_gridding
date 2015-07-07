@@ -12,13 +12,6 @@
 #include <omp.h>
 #endif
 
-#ifdef VERBOSE
-#define __DISPATCHER_MSG(s) __PRINTF(s)
-#else
-#define __DISPATCHER_MSG(s) {}
-#define VERBOSE 0
-#endif
-
 #define ONE_4PI_EPS0  138.9354491512000038
 
 typedef double t_complex[2];

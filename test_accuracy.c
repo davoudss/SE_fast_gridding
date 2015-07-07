@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
 
   // Initialize parameters for SE
   SE_init_params(&M,&P,&m,eps,L,xi,st.q,N);
- 
+
   SE_opt opt = {.m = m, .box = {L, L, L}, .P = P, .M = M, .N=N};
   
   // to run direct method
@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
  
   SE_fp_set_zero(phi_direct,N);
 
-  SE3P_direct(phi_direct, st.x, st.q, N, ED_opt);
+  SE3P_direct_fd(phi_direct, st.x, st.q, N, ED_opt);
   spectral_ewald(st.x,st.q,opt,xi,st.phi,st.phi);
 
   printf("error in potential: %g \n",norm(phi_direct,st.phi,N));
@@ -85,7 +85,7 @@ int main(int argc, char* argv[])
   SE_fp_set_zero(force_direct,N);
 
   // to run direct method
-  SE3P_direct_force(force_direct, st.x, st.q, N, ED_opt);
+  SE3P_direct_force_fd(force_direct, st.x, st.q, N, ED_opt);
   spectral_ewald(st.x,st.q,opt,xi,force,st.phi);
  
   printf("error in force: %g \n",norm(force,force_direct,3*N));

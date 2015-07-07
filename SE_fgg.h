@@ -4,6 +4,7 @@
 // System includes
 #include "math.h"
 #include <sys/time.h>
+#include "emmintrin.h"
 #include "x86intrin.h"
 
 // Consttants and indexing 
@@ -25,24 +26,21 @@
 #define PER_STR "2P"
 #endif
 
+#ifdef ONE_PERIODIC
+#define __FGG_EXPA fgg_expansion_1p
+#define __FGG_EXPA_FORCE fgg_expansion_3p_force
+#define PER_STR "1P"
+#endif
+
 // Maximal amount of Gaussian support (defined to help the compiler)
 #define P_MAX 32
 
-// Specific includes and defines for MEX-file compilation
-#ifdef MATLAB_MEX_FILE
-#include "mex.h"
-#define __MALLOC malloc
-#define __PRINTF mexPrintf
-#define __FREE free
-#define __IDX __IDX3_CMAJ
-#else
 #include <stdlib.h>
 #include <stdio.h>
 #define __MALLOC malloc
 #define __PRINTF printf
 #define __FREE free
 #define __IDX __IDX3_RMAJ
-#endif
 
 // Malloc with 32 or 16-byte alignment (from intrinsics library)
 #ifdef __AVX__
@@ -130,7 +128,8 @@ typedef struct
     double c;
     double d;
     double h;
-    double a;
+    double a;   // z-dir offset in 2P and x-dir offset in 1P
+    double b;   // y-dir offset in 1P
 
 } SE_FGG_params;
 
@@ -237,10 +236,12 @@ void SE_FGG_base_gaussian(SE_FGG_work*, const SE_FGG_params*);
 // Wrap function to produce periodicity
 void SE_FGG_wrap_fcn(double*, const SE_FGG_work*, const SE_FGG_params*);
 void SE2P_FGG_wrap_fcn(double*, const SE_FGG_work*, const SE_FGG_params*);
+void SE1P_FGG_wrap_fcn(double*, const SE_FGG_work*, const SE_FGG_params*);
 
 // Extend periodic function
 void SE_FGG_extend_fcn(SE_FGG_work*, const double*, const SE_FGG_params*);
 void SE2P_FGG_extend_fcn(SE_FGG_work*, const double*, const SE_FGG_params*);
+void SE1P_FGG_extend_fcn(SE_FGG_work*, const double*, const SE_FGG_params*);
 
 // Randomize positions and charges (malloc)
 void SE_init_system(SE_state*, const SE_FGG_params*);

@@ -554,8 +554,18 @@ SE_init_params(int* M,int* P,double* m, double eps, double L,
 
 
  if(M_l<iP)
-   M_l = iP;
- 
+      M_l = iP;
+
+#ifdef __AVX__
+  int rem = M_l%4;
+  if(rem!=0)
+    M_l += (4-rem);
+#else
+  int rem = (M_l%2);
+  if(rem!=0)
+    M_l++;
+#endif
+
  *m = m_l;
  *M = M_l;
  return Q;

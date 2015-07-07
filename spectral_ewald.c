@@ -87,19 +87,19 @@ spectral_ewald(double *x, double *q, SE_opt opt,
    if(PRECOMP_FGG_EXPA){
 #ifdef POTENTIAL
      SE_FGG_expand_all(&work, &st, &params);
-#ifdef SSE
-     SE_FGG_grid_split_SSE_dispatch(&work, &st, &params);
-#elif AVX
+#ifdef __AVX__
      SE_FGG_grid_split_AVX_dispatch(&work, &st, &params);
+#else
+     SE_FGG_grid_split_SSE_dispatch(&work, &st, &params);
 #endif
 #endif
 
 #ifdef FORCE
      SE_FGG_expand_all_SSE_force(&work, &st, &params);
-#ifdef SSE
-     SE_FGG_grid_split_SSE_dispatch_force(&work, &st, &params);
-#elif AVX
+#ifdef __AVX__
      SE_FGG_grid_split_AVX_dispatch_force(&work, &st, &params);
+#else
+     SE_FGG_grid_split_SSE_dispatch_force(&work, &st, &params);
 #endif
 #endif
    }
@@ -139,10 +139,10 @@ spectral_ewald(double *x, double *q, SE_opt opt,
 
    // Integration
    if(PRECOMP_FGG_EXPA)
-#ifdef SSE
-     SE_FGG_int_split_SSE_dispatch(force_phi, &work, &params);
-#elif AVX
+#ifdef __AVX__
      SE_FGG_int_split_AVX_dispatch(force_phi, &work, &params);
+#else
+     SE_FGG_int_split_SSE_dispatch(force_phi, &work, &params);
 #endif
    else
      SE_FGG_int(force_phi, &work, &st, &params);
@@ -153,10 +153,10 @@ spectral_ewald(double *x, double *q, SE_opt opt,
 
   //Integration
   if(PRECOMP_FGG_EXPA){
-#ifdef SSE
-    SE_FGG_int_split_SSE_dispatch_force(force_phi, &st,&work, &params);
-#elif AVX
+#ifdef __AVX__
     SE_FGG_int_split_AVX_dispatch_force(force_phi, &st,&work, &params);
+#else
+    SE_FGG_int_split_SSE_dispatch_force(force_phi, &st,&work, &params);
 #endif
   }
   else{
